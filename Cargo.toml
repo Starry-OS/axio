@@ -14,4 +14,4 @@ alloc = []
 default = []
 
 [dependencies]
-axerrno = { path = "../axerrno" }
+axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
