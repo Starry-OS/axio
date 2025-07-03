@@ -16,4 +16,4 @@ alloc = []
 default = ["alloc"]
 
 [dependencies]
-axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git" }
+axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git", rev = "f5d8f86" }
