@@ -131,11 +131,12 @@ impl<R: Read> Read for BufReader<R> {
             // be an incomplete UTF-8 sequence that has only been partially read. We must read
             // everything into a side buffer first and then call `from_utf8` on the complete
             // buffer.
+
+            use axerrno::ax_err;
             let mut bytes = Vec::new();
             self.read_to_end(&mut bytes)?;
-            let string = core::str::from_utf8(&bytes).map_err(|_| {
-                axerrno::ax_err_type!(InvalidData, "stream did not contain valid UTF-8")
-            })?;
+            let string = core::str::from_utf8(&bytes)
+                .map_err(|_| ax_err!(EINVAL, "invalid UTF-8 sequence in stream"))?;
             *buf += string;
             Ok(string.len())
         }

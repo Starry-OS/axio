@@ -20,8 +20,7 @@ pub use self::error::{Error, Result};
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
-
-use axerrno::ax_err;
+use axerrno::bail;
 
 /// Default [`Read::read_to_end`] implementation with optional size hint.
 ///
@@ -86,7 +85,7 @@ pub fn default_read_to_end<R: Read + ?Sized>(
         if buf.len() == buf.capacity() {
             // buf is full, need more space
             if let Err(e) = buf.try_reserve(PROBE_SIZE) {
-                return ax_err!(NoMemory, e);
+                axerrno::bail!(ENOMEM, e);
             }
         }
 
@@ -180,7 +179,7 @@ pub trait Read {
             }
         }
         if !buf.is_empty() {
-            ax_err!(UnexpectedEof, "failed to fill whole buffer")
+            bail!(EIO, "failed to read whole buffer");
         } else {
             Ok(())
         }
@@ -200,7 +199,7 @@ pub trait Write {
     fn write_all(&mut self, mut buf: &[u8]) -> Result {
         while !buf.is_empty() {
             match self.write(buf) {
-                Ok(0) => return ax_err!(WriteZero, "failed to write whole buffer"),
+                Ok(0) => bail!(EIO, "failed to write whole buffer"),
                 Ok(n) => buf = &buf[n..],
                 Err(e) => return Err(e),
             }
@@ -241,7 +240,7 @@ pub trait Write {
                 if output.error.is_err() {
                     output.error
                 } else {
-                    ax_err!(InvalidData, "formatter error")
+                    bail!(EINVAL, "formatter error")
                 }
             }
         }
@@ -324,7 +323,7 @@ pub trait BufRead: Read {
             let (done, used) = {
                 let available = match self.fill_buf() {
                     Ok(n) => n,
-                    Err(Error::WouldBlock) => continue,
+                    Err(Error::EAGAIN) => continue,
                     Err(e) => return Err(e),
                 };
                 match available.iter().position(|&b| b == byte) {
@@ -363,7 +362,7 @@ where
     let buf = unsafe { buf.as_mut_vec() };
     let ret = f(buf)?;
     if core::str::from_utf8(&buf[old_len..]).is_err() {
-        ax_err!(InvalidData, "stream did not contain valid UTF-8")
+        bail!(EINVAL, "invalid UTF-8 sequence in stream")
     } else {
         Ok(ret)
     }

@@ -13,7 +13,7 @@ categories = ["no-std"]
 
 [features]
 alloc = []
-default = []
+default = ["alloc"]
 
 [dependencies]
-axerrno = "0.1"
+axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git" }

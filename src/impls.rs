@@ -1,3 +1,5 @@
+use axerrno::bail;
+
 use crate::{prelude::*, Result};
 use core::cmp;
 
@@ -24,7 +26,7 @@ impl Read for &[u8] {
     #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         if buf.len() > self.len() {
-            return axerrno::ax_err!(UnexpectedEof, "failed to fill whole buffer");
+            bail!(EIO, "failed to fill whole buffer");
         }
         let amt = buf.len();
         let a = &self[..amt];
