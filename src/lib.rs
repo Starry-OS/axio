@@ -16,6 +16,8 @@ mod impls;
 
 pub mod prelude;
 
+use crate::buf::{Buf, BufMut};
+
 pub use self::buffered::BufReader;
 pub use self::error::{Error, Result};
 
@@ -185,6 +187,25 @@ pub trait Read {
             Ok(())
         }
     }
+
+    /// Read bytes into a mutable buffer, returning number of bytes read.
+    fn read_to_buf(&mut self, buf: &mut impl BufMut) -> Result<usize> {
+        let mut read = 0;
+        loop {
+            let chunk = buf.chunk_mut();
+            if chunk.is_empty() {
+                break;
+            }
+            let n = self.read(chunk)?;
+            let not_filled = n < chunk.len();
+            buf.advance(n);
+            read += n;
+            if not_filled {
+                break;
+            }
+        }
+        Ok(read)
+    }
 }
 
 /// A trait for objects which are byte-oriented sinks.
@@ -245,6 +266,26 @@ pub trait Write {
                 }
             }
         }
+    }
+
+    /// Writes bytes from a buffer into this writer, returning number of bytes
+    /// written.
+    fn write_buf(&mut self, buf: &mut impl Buf) -> Result<usize> {
+        let mut written = 0;
+        loop {
+            let chunk = buf.chunk();
+            if chunk.is_empty() {
+                break;
+            }
+            let n = self.write(chunk)?;
+            let not_filled = n < chunk.len();
+            buf.advance(n);
+            written += n;
+            if not_filled {
+                break;
+            }
+        }
+        Ok(written)
     }
 }
 
