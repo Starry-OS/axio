@@ -9,6 +9,7 @@ extern crate alloc;
 
 use core::fmt;
 
+pub mod buf;
 mod buffered;
 mod error;
 mod impls;

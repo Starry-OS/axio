@@ -1,7 +1,7 @@
 use axerrno::bail;
 
-use crate::{prelude::*, Result};
-use core::cmp;
+use crate::{buf::{Buf, BufMut}, prelude::*, Result};
+use core::{cmp, mem};
 
 impl Read for &[u8] {
     #[inline]
@@ -52,5 +52,44 @@ impl Read for &[u8] {
         let len = self.len();
         *self = &self[len..];
         Ok(len)
+    }
+}
+
+impl Buf for &[u8] {
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn chunk(&self) -> &[u8] {
+        self
+    }
+
+    #[inline]
+    fn advance(&mut self, n: usize) {
+        *self = &self[n..];
+    }
+}
+impl Buf for &mut [u8] {
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn chunk(&self) -> &[u8] {
+        self
+    }
+
+    #[inline]
+    fn advance(&mut self, n: usize) {
+        *self = &mut mem::take(self)[n..];
+    }
+}
+impl BufMut for &mut [u8] {
+    #[inline]
+    fn chunk_mut(&mut self) -> &mut [u8] {
+        self
     }
 }
