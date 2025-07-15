@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use axerrno::LinuxResult;
 
 use crate::{Read, Write};
@@ -14,6 +16,27 @@ pub trait Buf {
     /// Advances the buffer by `n` bytes.
     fn advance(&mut self, n: usize);
 
+    /// Reads the buffer with the given function, which is called repeatedly
+    /// until it returns `0` or the buffer is exhausted.
+    fn read_with<R>(&mut self, mut f: impl FnMut(&[u8]) -> Result<usize, R>) -> Result<usize, R> {
+        let mut read = 0;
+        loop {
+            let d = self.chunk();
+            if d.is_empty() {
+                break;
+            }
+
+            let cnt = f(d)?;
+            if cnt == 0 {
+                break;
+            }
+
+            self.advance(cnt);
+            read += cnt;
+        }
+        Ok(read)
+    }
+
     /// Creates an adaptor which implements the `Read` trait for `self`.
     fn reader(self) -> Reader<Self>
     where
@@ -29,24 +52,52 @@ pub trait BufMut: Buf {
     /// between `0` and `Buf::remaining()`.
     fn chunk_mut(&mut self) -> &mut [u8];
 
-    /// Transfer bytes into self from src and advance the cursor by the number of bytes written.
-    fn put(&mut self, src: &mut impl Buf) -> usize {
+    /// Fills the buffer with the given function, which is called repeatedly
+    /// until it returns `0` or the buffer is exhausted.
+    fn fill_with<R>(
+        &mut self,
+        mut f: impl FnMut(&mut [u8]) -> Result<usize, R>,
+    ) -> Result<usize, R> {
         let mut written = 0;
         loop {
-            let s = src.chunk();
             let d = self.chunk_mut();
-            let cnt = usize::min(s.len(), d.len());
+            if d.is_empty() {
+                break;
+            }
+
+            let cnt = f(d)?;
             if cnt == 0 {
                 break;
             }
 
-            d[..cnt].copy_from_slice(&s[..cnt]);
-            written += cnt;
-
-            src.advance(cnt);
             self.advance(cnt);
+            written += cnt;
         }
-        written
+        Ok(written)
+    }
+
+    /// Transfer bytes into self from src and advance the cursor by the number of bytes written.
+    fn put(&mut self, src: &mut impl Buf) -> usize {
+        self.fill_with::<Infallible>(|chunk| {
+            let s = src.chunk();
+            let cnt = usize::min(s.len(), chunk.len());
+            if cnt == 0 {
+                return Ok(0);
+            }
+
+            chunk[..cnt].copy_from_slice(&s[..cnt]);
+            src.advance(cnt);
+            Ok(cnt)
+        })
+        .unwrap_or_else(|err| match err {})
+    }
+
+    /// Creates an adaptor which implements the `Write` trait for `self`.
+    fn writer(self) -> Writer<Self>
+    where
+        Self: Sized,
+    {
+        Writer(self)
     }
 }
 
