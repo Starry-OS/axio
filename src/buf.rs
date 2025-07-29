@@ -16,6 +16,17 @@ pub trait Buf {
     /// Advances the buffer by `n` bytes.
     fn advance(&mut self, n: usize);
 
+    /// Creates an adaptor which implements the `Read` trait for `self`.
+    fn reader(self) -> Reader<Self>
+    where
+        Self: Sized,
+    {
+        Reader(self)
+    }
+}
+
+/// Extension trait for `Buf`.
+pub trait BufExt: Buf {
     /// Reads the buffer with the given function, which is called repeatedly
     /// until it returns `0` or the buffer is exhausted.
     fn read_with<R>(&mut self, mut f: impl FnMut(&[u8]) -> Result<usize, R>) -> Result<usize, R> {
@@ -36,15 +47,8 @@ pub trait Buf {
         }
         Ok(read)
     }
-
-    /// Creates an adaptor which implements the `Read` trait for `self`.
-    fn reader(self) -> Reader<Self>
-    where
-        Self: Sized,
-    {
-        Reader(self)
-    }
 }
+impl<T: Buf> BufExt for T {}
 
 /// A trait for values that provide sequential write access to bytes.
 pub trait BufMut: Buf {
@@ -52,6 +56,17 @@ pub trait BufMut: Buf {
     /// between `0` and `Buf::remaining()`.
     fn chunk_mut(&mut self) -> &mut [u8];
 
+    /// Creates an adaptor which implements the `Write` trait for `self`.
+    fn writer(self) -> Writer<Self>
+    where
+        Self: Sized,
+    {
+        Writer(self)
+    }
+}
+
+/// Extension trait for `BufMut`.
+pub trait BufMutExt: BufMut {
     /// Fills the buffer with the given function, which is called repeatedly
     /// until it returns `0` or the buffer is exhausted.
     fn fill_with<R>(
@@ -91,15 +106,8 @@ pub trait BufMut: Buf {
         })
         .unwrap_or_else(|err| match err {})
     }
-
-    /// Creates an adaptor which implements the `Write` trait for `self`.
-    fn writer(self) -> Writer<Self>
-    where
-        Self: Sized,
-    {
-        Writer(self)
-    }
 }
+impl<T: BufMut> BufMutExt for T {}
 
 /// A `Buf` adapter which implements `Read` for the inner value.
 pub struct Reader<B>(B);
