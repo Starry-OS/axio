@@ -17,3 +17,4 @@ default = ["alloc"]
 
 [dependencies]
 axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git", rev = "f5d8f86" }
+bitflags = { version = "2.9.1", default-features = false }

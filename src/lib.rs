@@ -13,13 +13,15 @@ pub mod buf;
 mod buffered;
 mod error;
 mod impls;
-
-pub mod prelude;
+mod poll;
 
 use crate::buf::{Buf, BufMut};
 
-pub use self::buffered::BufReader;
-pub use self::error::{Error, Result};
+pub use self::{
+    buffered::BufReader,
+    error::{Error, Result},
+    poll::*,
+};
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
@@ -408,13 +410,4 @@ where
     } else {
         Ok(ret)
     }
-}
-
-/// I/O poll results.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct PollState {
-    /// Object can be read now.
-    pub readable: bool,
-    /// Object can be writen now.
-    pub writable: bool,
 }

@@ -1,7 +1,11 @@
+use core::{cmp, mem};
+
 use axerrno::bail;
 
-use crate::{buf::{Buf, BufMut}, prelude::*, Result};
-use core::{cmp, mem};
+use crate::{
+    buf::{Buf, BufMut},
+    Read, Result,
+};
 
 impl Read for &[u8] {
     #[inline]

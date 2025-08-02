@@ -131,7 +131,7 @@ impl<B: BufMut> Write for Writer<B> {
 
 #[cfg(test)]
 mod test {
-    use crate::buf::{Buf, BufMut};
+    use crate::buf::{Buf, BufMutExt};
 
     #[test]
     fn test_buf() {
