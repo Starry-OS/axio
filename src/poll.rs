@@ -52,7 +52,7 @@ impl Default for PollSet {
 
 #[cfg(feature = "alloc")]
 impl PollSet {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             head: core::sync::atomic::AtomicPtr::new(core::ptr::null_mut()),
         }
