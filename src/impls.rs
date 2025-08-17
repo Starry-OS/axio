@@ -1,18 +1,20 @@
-use core::{cmp, mem};
+use core::{
+    cmp,
+    mem::{self, MaybeUninit},
+};
 
 use axerrno::bail;
 
 use crate::{
     buf::{Buf, BufMut},
-    Read, Result,
+    Read, Result, Write,
 };
 
 impl Read for &[u8] {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let amt = cmp::min(buf.len(), self.len());
-        let a = &self[..amt];
-        let b = &self[amt..];
+        let (a, b) = self.split_at(amt);
 
         // First check if the amount of bytes we want to read is small:
         // `copy_from_slice` will generally expand to a call to `memcpy`, and
@@ -33,8 +35,7 @@ impl Read for &[u8] {
             bail!(EIO, "failed to fill whole buffer");
         }
         let amt = buf.len();
-        let a = &self[..amt];
-        let b = &self[amt..];
+        let (a, b) = self.split_at(amt);
 
         // First check if the amount of bytes we want to read is small:
         // `copy_from_slice` will generally expand to a call to `memcpy`, and
@@ -59,41 +60,51 @@ impl Read for &[u8] {
     }
 }
 
+impl Write for &mut [u8] {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let amt = cmp::min(buf.len(), self.len());
+        let (a, b) = mem::take(self).split_at_mut(amt);
+
+        // First check if the amount of bytes we want to write is small:
+        // `copy_from_slice` will generally expand to a call to `memcpy`, and
+        // for a single byte the overhead is significant.
+        if amt == 1 {
+            a[0] = buf[0];
+        } else {
+            a.copy_from_slice(&buf[..amt]);
+        }
+
+        *self = b;
+        Ok(amt)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
 impl Buf for &[u8] {
-    #[inline]
     fn remaining(&self) -> usize {
         self.len()
     }
 
-    #[inline]
-    fn chunk(&self) -> &[u8] {
-        self
-    }
-
-    #[inline]
-    fn advance(&mut self, n: usize) {
-        *self = &self[n..];
+    fn consume(&mut self, mut f: impl FnMut(&[u8]) -> Result<usize>) -> Result<usize> {
+        let consumed = f(self)?;
+        *self = &self[consumed..];
+        Ok(consumed)
     }
 }
-impl Buf for &mut [u8] {
-    #[inline]
-    fn remaining(&self) -> usize {
-        self.len()
-    }
 
-    #[inline]
-    fn chunk(&self) -> &[u8] {
-        self
-    }
-
-    #[inline]
-    fn advance(&mut self, n: usize) {
-        *self = &mut mem::take(self)[n..];
-    }
-}
 impl BufMut for &mut [u8] {
-    #[inline]
-    fn chunk_mut(&mut self) -> &mut [u8] {
-        self
+    fn remaining_mut(&self) -> usize {
+        self.len()
+    }
+
+    fn fill(&mut self, mut f: impl FnMut(&mut [u8]) -> Result<usize>) -> Result<usize> {
+        let filled = f(self)?;
+        *self = mem::take(self).split_at_mut(filled).1;
+        Ok(filled)
     }
 }

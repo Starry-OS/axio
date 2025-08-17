@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(doc), no_std)]
 #![feature(doc_auto_cfg)]
+#![feature(maybe_uninit_slice)]
 #![feature(core_io_borrowed_buf)]
 
 #[cfg(feature = "alloc")]
@@ -9,15 +10,14 @@ extern crate alloc;
 
 use core::fmt;
 
-pub mod buf;
+mod buf;
 mod buffered;
 mod error;
 mod impls;
 mod poll;
 
-use crate::buf::{Buf, BufMut};
-
 pub use self::{
+    buf::{Buf, BufMut},
     buffered::BufReader,
     error::{Error, Result},
     poll::*,
@@ -26,6 +26,8 @@ pub use self::{
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
 use axerrno::bail;
+
+const DEFAULT_BUF_SIZE: usize = 1024;
 
 /// Default [`Read::read_to_end`] implementation with optional size hint.
 ///
@@ -39,8 +41,6 @@ pub fn default_read_to_end<R: Read + ?Sized>(
     size_hint: Option<usize>,
 ) -> Result<usize> {
     use core::io::BorrowedBuf;
-
-    const DEFAULT_BUF_SIZE: usize = 1024;
 
     let start_len = buf.len();
     let start_cap = buf.capacity();
@@ -189,25 +189,6 @@ pub trait Read {
             Ok(())
         }
     }
-
-    /// Read bytes into a mutable buffer, returning number of bytes read.
-    fn read_to_buf(&mut self, buf: &mut impl BufMut) -> Result<usize> {
-        let mut read = 0;
-        loop {
-            let chunk = buf.chunk_mut();
-            if chunk.is_empty() {
-                break;
-            }
-            let n = self.read(chunk)?;
-            let not_filled = n < chunk.len();
-            buf.advance(n);
-            read += n;
-            if not_filled {
-                break;
-            }
-        }
-        Ok(read)
-    }
 }
 
 /// A trait for objects which are byte-oriented sinks.
@@ -270,24 +251,10 @@ pub trait Write {
         }
     }
 
-    /// Writes bytes from a buffer into this writer, returning number of bytes
-    /// written.
-    fn write_buf(&mut self, buf: &mut impl Buf) -> Result<usize> {
-        let mut written = 0;
-        loop {
-            let chunk = buf.chunk();
-            if chunk.is_empty() {
-                break;
-            }
-            let n = self.write(chunk)?;
-            let not_filled = n < chunk.len();
-            buf.advance(n);
-            written += n;
-            if not_filled {
-                break;
-            }
-        }
-        Ok(written)
+    fn into_buf_mut(self)
+    where
+        Self: Sized,
+    {
     }
 }
 

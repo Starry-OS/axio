@@ -1,3 +1,5 @@
+use core::mem::MaybeUninit;
+
 use crate::{BufRead, Read, Result};
 
 #[cfg(feature = "alloc")]
@@ -10,7 +12,7 @@ pub struct BufReader<R> {
     inner: R,
     pos: usize,
     filled: usize,
-    buf: [u8; DEFAULT_BUF_SIZE],
+    buf: [MaybeUninit<u8>; DEFAULT_BUF_SIZE],
 }
 
 impl<R: Read> BufReader<R> {
@@ -20,7 +22,7 @@ impl<R: Read> BufReader<R> {
             inner,
             pos: 0,
             filled: 0,
-            buf: [0; DEFAULT_BUF_SIZE],
+            buf: [const { MaybeUninit::uninit() }; DEFAULT_BUF_SIZE],
         }
     }
 }
@@ -42,7 +44,7 @@ impl<R> BufReader<R> {
     ///
     /// [`fill_buf`]: BufRead::fill_buf
     pub fn buffer(&self) -> &[u8] {
-        &self.buf[self.pos..self.filled]
+        unsafe { self.buf[self.pos..self.filled].assume_init_ref() }
     }
 
     /// Returns the number of bytes the internal buffer can hold at once.
@@ -146,7 +148,7 @@ impl<R: Read> Read for BufReader<R> {
 impl<R: Read> BufRead for BufReader<R> {
     fn fill_buf(&mut self) -> Result<&[u8]> {
         if self.is_empty() {
-            let read_len = self.inner.read(&mut self.buf)?;
+            let read_len = self.inner.read(unsafe { self.buf.assume_init_mut() })?;
             self.pos = 0;
             self.filled = read_len;
         }
