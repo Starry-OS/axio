@@ -1,9 +1,6 @@
-use core::{
-    cmp,
-    mem::{self, MaybeUninit},
-};
+use core::{cmp, mem};
 
-use axerrno::bail;
+use axerrno::ax_bail;
 
 use crate::{
     buf::{Buf, BufMut},
@@ -32,7 +29,7 @@ impl Read for &[u8] {
     #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         if buf.len() > self.len() {
-            bail!(EIO, "failed to fill whole buffer");
+            ax_bail!(Io, "failed to fill whole buffer");
         }
         let amt = buf.len();
         let (a, b) = self.split_at(amt);

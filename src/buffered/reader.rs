@@ -134,11 +134,11 @@ impl<R: Read> Read for BufReader<R> {
             // everything into a side buffer first and then call `from_utf8` on the complete
             // buffer.
 
-            use axerrno::ax_err;
             let mut bytes = Vec::new();
             self.read_to_end(&mut bytes)?;
-            let string = core::str::from_utf8(&bytes)
-                .map_err(|_| ax_err!(EINVAL, "invalid UTF-8 sequence in stream"))?;
+            let string = core::str::from_utf8(&bytes).map_err(|_| {
+                axerrno::ax_err_type!(InvalidData, "invalid UTF-8 sequence in stream")
+            })?;
             *buf += string;
             Ok(string.len())
         }

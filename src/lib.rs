@@ -25,7 +25,7 @@ pub use self::{
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
-use axerrno::bail;
+use axerrno::ax_bail;
 
 const DEFAULT_BUF_SIZE: usize = 1024;
 
@@ -90,7 +90,7 @@ pub fn default_read_to_end<R: Read + ?Sized>(
         if buf.len() == buf.capacity() {
             // buf is full, need more space
             if let Err(e) = buf.try_reserve(PROBE_SIZE) {
-                axerrno::bail!(ENOMEM, e);
+                ax_bail!(NoMemory, e);
             }
         }
 
@@ -184,7 +184,7 @@ pub trait Read {
             }
         }
         if !buf.is_empty() {
-            bail!(EIO, "failed to read whole buffer");
+            ax_bail!(Io, "failed to read whole buffer");
         } else {
             Ok(())
         }
@@ -204,7 +204,7 @@ pub trait Write {
     fn write_all(&mut self, mut buf: &[u8]) -> Result {
         while !buf.is_empty() {
             match self.write(buf) {
-                Ok(0) => bail!(EIO, "failed to write whole buffer"),
+                Ok(0) => ax_bail!(Io, "failed to write whole buffer"),
                 Ok(n) => buf = &buf[n..],
                 Err(e) => return Err(e),
             }
@@ -245,7 +245,7 @@ pub trait Write {
                 if output.error.is_err() {
                     output.error
                 } else {
-                    bail!(EINVAL, "formatter error")
+                    ax_bail!(InvalidData, "formatter error")
                 }
             }
         }
@@ -334,7 +334,7 @@ pub trait BufRead: Read {
             let (done, used) = {
                 let available = match self.fill_buf() {
                     Ok(n) => n,
-                    Err(Error::EAGAIN) => continue,
+                    Err(Error::WouldBlock) => continue,
                     Err(e) => return Err(e),
                 };
                 match available.iter().position(|&b| b == byte) {
@@ -373,7 +373,7 @@ where
     let buf = unsafe { buf.as_mut_vec() };
     let ret = f(buf)?;
     if core::str::from_utf8(&buf[old_len..]).is_err() {
-        bail!(EINVAL, "invalid UTF-8 sequence in stream")
+        ax_bail!(InvalidData, "invalid UTF-8 sequence in stream")
     } else {
         Ok(ret)
     }
