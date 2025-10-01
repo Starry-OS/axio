@@ -1,6 +1,10 @@
-use core::task::Context;
+use core::{
+    mem::MaybeUninit,
+    task::{Context, Waker},
+};
 
 use bitflags::bitflags;
+use spin::Mutex;
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -35,70 +39,80 @@ pub trait Pollable {
     fn register(&self, context: &mut Context<'_>, events: IoEvents);
 }
 
-#[cfg(feature = "alloc")]
-struct Entry {
-    waker: core::task::Waker,
-    next: *mut Entry,
+const POLL_SET_CAPACITY: usize = 64;
+
+struct Inner {
+    entries: [MaybeUninit<Waker>; POLL_SET_CAPACITY],
+    cursor: usize,
 }
 
-// TODO: optimize
-/// A lock-free structure for waking up tasks that are waiting for I/O events.
-#[cfg(feature = "alloc")]
-pub struct PollSet {
-    head: core::sync::atomic::AtomicPtr<Entry>,
+impl Inner {
+    const fn new() -> Self {
+        Self {
+            entries: unsafe { MaybeUninit::uninit().assume_init() },
+            cursor: 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.cursor.min(POLL_SET_CAPACITY)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.cursor == 0
+    }
+
+    fn register(&mut self, waker: &Waker) {
+        let slot = self.cursor % POLL_SET_CAPACITY;
+        if self.cursor >= POLL_SET_CAPACITY {
+            let old = unsafe { self.entries[slot].assume_init_read() };
+            if !old.will_wake(waker) {
+                old.wake();
+            }
+        }
+        self.entries[slot].write(waker.clone());
+        self.cursor = (self.cursor + 1) % (POLL_SET_CAPACITY * 2);
+    }
 }
 
-#[cfg(feature = "alloc")]
+impl Drop for Inner {
+    fn drop(&mut self) {
+        let len = self.cursor.min(POLL_SET_CAPACITY);
+        for i in 0..len {
+            unsafe { self.entries[i].assume_init_read() }.wake();
+        }
+    }
+}
+
+/// A data structure for waking up tasks that are waiting for I/O events.
+pub struct PollSet(Mutex<Inner>);
+
 impl Default for PollSet {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "alloc")]
 impl PollSet {
     pub const fn new() -> Self {
-        Self {
-            head: core::sync::atomic::AtomicPtr::new(core::ptr::null_mut()),
-        }
+        Self(Mutex::new(Inner::new()))
     }
 
-    pub fn register(&self, waker: &core::task::Waker) {
-        let entry = alloc::boxed::Box::leak(alloc::boxed::Box::new(Entry {
-            waker: waker.clone(),
-            next: core::ptr::null_mut(),
-        }));
-
-        entry.next = self.head.load(core::sync::atomic::Ordering::Acquire);
-        loop {
-            match self.head.compare_exchange_weak(
-                entry.next,
-                entry,
-                core::sync::atomic::Ordering::Release,
-                core::sync::atomic::Ordering::Acquire,
-            ) {
-                Ok(_) => break,
-                Err(current) => entry.next = current,
-            }
-        }
+    pub fn register(&self, waker: &Waker) {
+        self.0.lock().register(waker);
     }
 
     pub fn wake(&self) -> usize {
-        let mut count = 0;
-        let mut head = self
-            .head
-            .swap(core::ptr::null_mut(), core::sync::atomic::Ordering::AcqRel);
-        while !head.is_null() {
-            let entry = unsafe { alloc::boxed::Box::from_raw(head) };
-            entry.waker.wake();
-            count += 1;
-            head = entry.next;
+        let mut guard = self.0.lock();
+        if guard.is_empty() {
+            return 0;
         }
-        count
+        let inner = core::mem::replace(&mut *guard, Inner::new());
+        drop(guard);
+        inner.len()
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Drop for PollSet {
     fn drop(&mut self) {
         // Ensure all entries are dropped
