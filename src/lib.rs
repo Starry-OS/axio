@@ -14,13 +14,11 @@ mod buf;
 mod buffered;
 mod error;
 mod impls;
-mod poll;
 
 pub use self::{
     buf::{Buf, BufMut},
     buffered::BufReader,
     error::{Error, Result},
-    poll::*,
 };
 
 #[cfg(feature = "alloc")]

@@ -17,10 +17,6 @@ default = ["alloc"]
 
 [dependencies]
 axerrno = "0.1"
-bitflags = { version = "2.9.1", default-features = false }
-spin = { version = "0.10.0", default-features = false, features = [
-    "spin_mutex",
-] }
 
 [patch.crates-io]
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
