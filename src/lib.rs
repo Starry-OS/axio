@@ -1,7 +1,7 @@
 //! [`std::io`]-like I/O traits for `no_std` environment.
 
 #![cfg_attr(not(doc), no_std)]
-#![feature(doc_auto_cfg)]
+#![feature(doc_cfg)]
 #![feature(maybe_uninit_slice)]
 #![feature(core_io_borrowed_buf)]
 
@@ -14,6 +14,7 @@ mod buf;
 mod buffered;
 mod error;
 mod impls;
+pub mod prelude;
 
 pub use self::{
     buf::{Buf, BufMut},
@@ -107,7 +108,7 @@ pub fn default_read_to_end<R: Read + ?Sized>(
         let n = r.read(cursor.ensure_init().init_mut())?;
         cursor.advance(n);
 
-        let unfilled_but_initialized = cursor.init_ref().len();
+        let unfilled_but_initialized = cursor.init_mut().len();
         let bytes_read = cursor.written();
         let was_fully_initialized = read_buf.init_len() == buf_len;
 
@@ -248,12 +249,6 @@ pub trait Write {
             }
         }
     }
-
-    fn into_buf_mut(self)
-    where
-        Self: Sized,
-    {
-    }
 }
 
 /// The `Seek` trait provides a cursor which can be moved within a stream of
@@ -375,4 +370,14 @@ where
     } else {
         Ok(ret)
     }
+}
+
+// FIXME: This is reserved for smooth migration of ArceOS.
+/// I/O poll results.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PollState {
+    /// Object can be read now.
+    pub readable: bool,
+    /// Object can be writen now.
+    pub writable: bool,
 }
