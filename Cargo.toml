@@ -16,7 +16,4 @@ alloc = []
 default = ["alloc"]
 
 [dependencies]
-axerrno = "0.1"
-
-[patch.crates-io]
-axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
+axerrno = "0.2"
