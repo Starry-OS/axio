@@ -17,3 +17,4 @@ default = ["alloc"]
 
 [dependencies]
 axerrno = "0.2"
+bytemuck = { version = "1.23", features = ["derive"] }

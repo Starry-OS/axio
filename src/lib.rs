@@ -18,13 +18,13 @@ pub mod prelude;
 
 pub use self::{
     buf::{Buf, BufMut},
-    buffered::BufReader,
+    buffered::{BufReader, BufWriter},
     error::{Error, Result},
 };
 
 #[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
-use axerrno::ax_bail;
+use alloc::{ffi::CString, string::String, vec::Vec};
+use axerrno::{ax_bail, AxError};
 
 const DEFAULT_BUF_SIZE: usize = 1024;
 
@@ -347,6 +347,35 @@ pub trait BufRead: Read {
                 return Ok(read);
             }
         }
+    }
+
+    /// Attempts to decode `T` directly from the currently buffered bytes.
+    ///
+    /// Returns `Ok(None)` if fewer than `size_of::<T>()` bytes are available.
+    #[cfg(feature = "alloc")]
+    fn read_val<T: bytemuck::Pod>(&mut self) -> Result<Option<T>> {
+        let size = core::mem::size_of::<T>();
+        let buf = self.fill_buf()?;
+        if buf.len() < size {
+            return Ok(None);
+        }
+        let val = bytemuck::try_pod_read_unaligned::<T>(&buf[..size])
+            .map_err(|_| AxError::InvalidData)?;
+        self.consume(size);
+        Ok(Some(val))
+    }
+
+    /// Reads a C-style string, stopping at the first NUL or EOF.
+    #[cfg(feature = "alloc")]
+    fn read_cstring(&mut self) -> Result<(CString, usize)> {
+        let mut buf = Vec::new();
+        let n = self.read_until(0, &mut buf)?;
+        let cstring = if buf.ends_with(&[0]) {
+            CString::from_vec_with_nul(buf).map_err(|_| AxError::InvalidData)?
+        } else {
+            CString::new(buf).map_err(|_| AxError::InvalidData)?
+        };
+        Ok((cstring, n))
     }
 
     /// Read all bytes until a newline (the `0xA` byte) is reached, and append
