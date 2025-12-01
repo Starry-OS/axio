@@ -1,11 +1,10 @@
 use core::mem::MaybeUninit;
 
 use crate::{BufRead, Read, Result};
+use super::DEFAULT_BUF_SIZE;
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
-
-const DEFAULT_BUF_SIZE: usize = 1024;
 
 /// The `BufReader<R>` struct adds buffering to any reader.
 pub struct BufReader<R> {

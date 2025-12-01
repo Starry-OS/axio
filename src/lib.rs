@@ -401,6 +401,21 @@ where
     }
 }
 
+// A `BufWrite` is a type of `Write`r which has an internal buffer, allowing it
+// to perform extra ways of writing.
+pub trait BufWrite: Write {
+    /// Flushes the internal buffer to the underlying writer.
+    fn flush_buf(&mut self) -> Result<()>;
+
+    /// Skips writing `len` bytes by advancing the internal buffer.
+    fn skip_some(&mut self, len: usize) -> Result<()>;
+
+    /// Writes the bytes of a plain-old-data value into this writer.
+    fn write_val<T: bytemuck::Pod>(&mut self, val: &T) -> Result<()> {
+        self.write_all(bytemuck::bytes_of(val))
+    }
+}
+
 // FIXME: This is reserved for smooth migration of ArceOS.
 /// I/O poll results.
 #[derive(Debug, Default, Clone, Copy)]

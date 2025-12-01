@@ -8,4 +8,4 @@
 //! use std::io::prelude::*;
 //! ```
 
-pub use super::{BufRead, Read, Seek, Write};
+pub use super::{BufRead, BufWrite, Read, Seek, Write};

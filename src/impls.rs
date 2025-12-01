@@ -1,10 +1,11 @@
+#[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
 use core::{cmp, mem};
 
 use axerrno::ax_bail;
 
 use crate::{
-    BufRead, Read, Result, Seek, SeekFrom, Write,
+    BufRead, BufWrite, Read, Result, Seek, SeekFrom, Write,
     buf::{Buf, BufMut},
 };
 
@@ -188,5 +189,19 @@ impl<B: BufRead + ?Sized> BufRead for &mut B {
     #[cfg(feature = "alloc")]
     fn read_line(&mut self, buf: &mut String) -> Result<usize> {
         (**self).read_line(buf)
+    }
+}
+
+impl<B: BufWrite + ?Sized> BufWrite for &mut B {
+    fn flush_buf(&mut self) -> Result<()> {
+        (**self).flush_buf()
+    }
+
+    fn skip_some(&mut self, len: usize) -> Result<()> {
+        (**self).skip_some(len)
+    }
+
+    fn write_val<T: bytemuck::Pod>(&mut self, val: &T) -> Result<()> {
+        (**self).write_val(val)
     }
 }
